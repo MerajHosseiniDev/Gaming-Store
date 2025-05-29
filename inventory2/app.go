@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -35,6 +36,8 @@ func (app *App) Run(address string) {
 func (app *App) handleRouters() {
 	app.Router.HandleFunc("/home", app.homePage)
 	app.Router.HandleFunc("/videogames", app.getVideoGames).Methods("GET")
+	app.Router.HandleFunc("/videogames/{id}", app.getVideoGame).Methods("GET")
+
 }
 
 func sendError(w http.ResponseWriter, statusCode int, err string) {
@@ -63,4 +66,26 @@ func (app *App) getVideoGames(w http.ResponseWriter, r *http.Request) {
 		sendError(w, http.StatusInternalServerError, err.Error())
 	}
 	sendResponse(w, http.StatusOK, videoGames)
+}
+
+func (app *App) getVideoGame(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	key, err := strconv.Atoi(vars["id"])
+	if err !=nil {
+		sendError(w, http.StatusBadRequest, "invalid product id")
+		return
+	}
+
+	v := Videogame{Id: key}
+	err = v.getVideoGame(app.DB)
+	if err != nil {
+		switch err {
+		case sql. ErrNoRows:
+			sendError(w, http.StatusNotFound, "product not found")
+		default:
+			sendError(w, http.StatusInternalServerError, err.Error())
+		}
+		return
+	}
+	sendResponse(w, http.StatusOK, v)
 }

@@ -1,6 +1,9 @@
 package main
 
-import "database/sql"
+import (
+	"database/sql"
+	"fmt"
+)
 
 type Videogame struct {
 	Id    int  `json:"id"`
@@ -25,4 +28,14 @@ func getVideoGames(db *sql.DB) ([]Videogame, error) {
 		videoGames = append(videoGames, v)
 	}
 	return videoGames, nil
+}
+
+func (v *Videogame) getVideoGame(db *sql.DB) error {
+	query := fmt.Sprintf("SELECT name, price FROM videogames where id=%v", v.Id)
+	rows := db.QueryRow(query)
+	err := rows.Scan(&v.Name, v.Price)
+	if err != nil {
+		return err
+	}
+	return nil
 }
