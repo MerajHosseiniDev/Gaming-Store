@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type App struct {
@@ -17,11 +18,17 @@ type App struct {
 }
 
 func (app * App) Initialise() error {
-	connetionString := fmt.Sprintf("%v:%v@tcp(127.0.0.1:3306)/%v", DbUser, DbPassword, DbName)
+	connectionString := fmt.Sprintf("%v:%v@tcp(127.0.0.1:3306)/%v", DbUser, DbPassword, DbName)
 	var err error
-	app.DB, err = sql.Open("mysql", connetionString)
+	app.DB, err = sql.Open("mysql", connectionString)
 	if err != nil {
 		return err
+	}
+
+	err = app.DB.Ping()
+	if err != nil {
+		app.DB.Close()
+		return fmt.Errorf("failed to ping database: %v", err)
 	}
 
 	app.Router = mux.NewRouter().StrictSlash(true)
@@ -37,7 +44,8 @@ func (app *App) handleRouters() {
 	app.Router.HandleFunc("/home", app.homePage)
 	app.Router.HandleFunc("/videogames", app.getVideoGames).Methods("GET")
 	app.Router.HandleFunc("/videogames/{id}", app.getVideoGame).Methods("GET")
-
+	app.Router.HandleFunc("/videogames", app.createVideoGame).Methods("POST")
+	app.Router.HandleFunc("/videogames/{id}", app.updateVideoGame).Methods("PUT")
 }
 
 func sendError(w http.ResponseWriter, statusCode int, err string) {
@@ -86,6 +94,42 @@ func (app *App) getVideoGame(w http.ResponseWriter, r *http.Request) {
 			sendError(w, http.StatusInternalServerError, err.Error())
 		}
 		return
+	}
+	sendResponse(w, http.StatusOK, v)
+}
+
+func (app *App) createVideoGame(w http.ResponseWriter, r *http.Request) {
+	var v Videogame
+	err := json.NewDecoder(r.Body).Decode(&v)
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "invalid request payload")
+		return
+	}
+	err = v.createVideoGame(app.DB)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	sendResponse(w, http.StatusCreated, v)
+}
+
+func (app *App) updateVideoGame(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	key, err := strconv.Atoi(vars["id"])
+	if err != nil{
+		sendError(w, http.StatusBadRequest, "invalid product id")
+		return
+	}
+	var v Videogame
+	err = json.NewDecoder(r.Body).Decode(&v)
+	if err != nil {
+		sendError(w, http.StatusBadRequest, "invalid payload Request")
+		return
+	}
+	v.Id = key
+	err = v.updateVideoGame(app.DB)
+	if err != nil {
+		sendError(w, http.StatusInternalServerError, err.Error())
 	}
 	sendResponse(w, http.StatusOK, v)
 }

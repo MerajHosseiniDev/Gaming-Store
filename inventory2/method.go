@@ -2,7 +2,7 @@ package main
 
 import (
 	"database/sql"
-	"fmt"
+	"errors"
 )
 
 type Videogame struct {
@@ -31,11 +31,42 @@ func getVideoGames(db *sql.DB) ([]Videogame, error) {
 }
 
 func (v *Videogame) getVideoGame(db *sql.DB) error {
-	query := fmt.Sprintf("SELECT name, price FROM videogames where id=%v", v.Id)
-	rows := db.QueryRow(query)
-	err := rows.Scan(&v.Name, v.Price)
+	query := "SELECT name, price FROM videogames where id=?"
+	rows := db.QueryRow(query, v.Id)
+	err := rows.Scan(&v.Name, &v.Price)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (v *Videogame) createVideoGame(db *sql.DB) error {
+	query := "insert into videogames(name,price) values(?, ?)"
+	result, err := db.Exec(query, v.Name, v.Price)
+	if err != nil {
+		return err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil{
+		return err
+	}
+	v.Id = int(id)
+	return nil
+}
+
+func (v *Videogame) updateVideoGame(db *sql.DB) error {
+	query := "UPDATE videogames SET name = ?, price = ? WHERE id = ?"
+	result, err := db.Exec(query, v.Name, v.Price, v.Id)
+	if err != nil {
+		return err
+	}
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected ==0 {
+		return errors.New("not such row exists")
+	}
+	return err
 }
